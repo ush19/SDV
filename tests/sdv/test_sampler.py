@@ -246,8 +246,8 @@ class TestSampler(TestCase):
         })
         instance_number_mock.transform.assert_called_once_with('positive_float_values')
 
-        positive_transformer_mock.transform.assert_called_once()
         call_args_list = positive_transformer_mock.transform.call_args_list
+        assert len(call_args_list) == 1
         args, kwargs = call_args_list[0]
         assert kwargs == {}
         assert len(args) == 1
