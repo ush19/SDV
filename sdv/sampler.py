@@ -4,7 +4,7 @@ import exrex
 import numpy as np
 import pandas as pd
 from copulas import get_qualified_name
-from rdt.transformers.positive_number import PositiveNumberTransformer
+from rdt.transformers.number import NumberTransformer
 
 GAUSSIAN_COPULA = 'copulas.multivariate.gaussian.GaussianMultivariate'
 
@@ -113,7 +113,12 @@ class Sampler:
                 if ref:
                     # generate parent row
                     parent_name = ref['table']
-                    parent_row = self.sample_rows(parent_name, 1)
+
+                    if table_name in self.sampled:
+                        parent_row = self.sampled[table_name][0][1].sample(1)
+                    else:
+                        parent_row = self.sample_rows(parent_name, 1)
+
                     # grab value of foreign key
                     val = parent_row[ref['field']]
                     row.loc[:, field['name']] = val
@@ -218,7 +223,6 @@ class Sampler:
             regex = node['regex']
 
             generator = self.primary_key.get(table_name)
-
             if generator is None:
                 generator = exrex.generate(regex)
                 self.primary_key[table_name] = generator
@@ -395,11 +399,7 @@ class Sampler:
         model_parameters['distribution'] = distribution_name
 
         distribs = model_parameters['distribs']
-        metadata = {
-            'name': 'std',
-            'type': 'number'
-        }
-        transformer = PositiveNumberTransformer(metadata)
+        transformer = self.modeler.get_positive_transformer('std')
 
         for distribution in distribs.values():
             distribution.update(distribution_kwargs)
@@ -557,7 +557,6 @@ class Sampler:
         if reset_primary_keys:
             self._reset_primary_keys_generators()
 
-        pk_name, pk_values = self._get_primary_keys(table_name, num_rows)
         parent_row = self._get_parent_row(table_name)
 
         if parent_row:
@@ -569,11 +568,23 @@ class Sampler:
             # get parameters from parent to make model
             extension = self._get_extension(parent_row, table_name, random_parent)
 
+            positive_transformer = self.modeler.get_positive_transformer('child_rows')
+            integer_transformer = NumberTransformer({
+                'name': 'child_rows',
+                'type': 'number',
+                'subtype': 'integer'
+            })
+            column = pd.DataFrame({'child_rows': [extension.pop('child_rows')]})
+
+            child_rows = integer_transformer.transform(
+                positive_transformer.transform(column)).loc[0, 'child_rows']
+
+            if num_rows is None:
+                num_rows = child_rows
+
             # Build a model using the parameters from the extension
             model = self._get_model(extension)
-            if num_rows is None:
-                num_rows = extension['num_children']
-
+            pk_name, pk_values = self._get_primary_keys(table_name, num_rows)
             synthesized_rows = self._sample_valid_rows(model, num_rows, table_name)
 
             # add foreign key value to row
@@ -584,6 +595,7 @@ class Sampler:
             synthesized_rows[foreign_key] = fk_val
 
         else:    # there is no parent
+            pk_name, pk_values = self._get_primary_keys(table_name, num_rows)
             model = self.modeler.models[table_name]
             synthesized_rows = self._sample_valid_rows(model, num_rows, table_name)
 

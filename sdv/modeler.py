@@ -87,6 +87,10 @@ class Modeler:
 
         return val
 
+    @staticmethod
+    def get_positive_transformer(column_name):
+        return PositiveNumberTransformer({'name': column_name, 'type': 'number'})
+
     @classmethod
     def _flatten_array(cls, nested, prefix=''):
         """Return a dictionary with the values of the given nested array.
@@ -164,10 +168,7 @@ class Modeler:
 
             model.covariance = np.array(values)
             if self.model_kwargs['distribution'] == get_qualified_name(DEFAULT_DISTRIBUTION):
-                transformer = PositiveNumberTransformer({
-                    'name': 'field',
-                    'type': 'number'
-                })
+                transformer = self.get_positive_transformer('field')
 
                 for distribution in model.distribs.values():
                     column = pd.DataFrame({'field': [distribution.std]})
@@ -266,7 +267,10 @@ class Modeler:
         if num_child_rows:
             clean_df = self.impute_table(child_rows)
             extension = self._get_model_dict(clean_df)
-            extension['child_rows'] = num_child_rows
+
+            transformer = self.get_positive_transformer('field')
+            column = pd.DataFrame({'field': [num_child_rows]})
+            extension['child_rows'] = transformer.reverse_transform(column).loc[0, 'field']
 
             extension = pd.Series(extension)
             extension.index = child_name + '__' + extension.index

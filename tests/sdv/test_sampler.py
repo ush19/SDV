@@ -181,6 +181,7 @@ class TestSampler(TestCase):
         update_mock.assert_called_once_with({}, 'parent_table', expected_sample_info)
         trans_mock.assert_called_once_with(sampler, sample_mock.return_value, 'parent_table')
 
+    @patch('sdv.sampler.NumberTransformer', autospec=True)
     @patch('sdv.sampler.Sampler._transform_synthesized_rows', autospec=True)
     @patch('sdv.sampler.Sampler.update_mapping_list')
     @patch('sdv.sampler.Sampler._sample_valid_rows', autospec=True)
@@ -190,7 +191,7 @@ class TestSampler(TestCase):
     @patch('sdv.sampler.Sampler._get_primary_keys', autospec=True)
     def test_sample_rows_children_table(
         self, primary_mock, parent_mock, model_mock, extension_mock,
-        sample_mock, update_mock, trans_mock
+        sample_mock, update_mock, trans_mock, number_mock
     ):
         """sample_rows samples using extensions when the table has parents."""
         # Setup
@@ -198,8 +199,19 @@ class TestSampler(TestCase):
         data_navigator.foreign_keys = {
             ('child_table', 'parent_name'): ('parent_pk', 'child_fk')
         }
+
         modeler = MagicMock(spec=Modeler)
         sampler = Sampler(data_navigator=data_navigator, modeler=modeler)
+
+        positive_transformer_mock = MagicMock(**{
+            'transform.return_value': 'positive_float_values'
+        })
+
+        instance_number_mock = MagicMock(**{
+            'transform.return_value': pd.DataFrame({'child_rows': ['positive_integer_values']})
+        })
+        number_mock.return_value = instance_number_mock
+        modeler.get_positive_transformer.return_value = positive_transformer_mock
 
         primary_mock.return_value = ('primary_key', pd.Series(range(5)))
         parent_mock.return_value = (
@@ -208,7 +220,10 @@ class TestSampler(TestCase):
             pd.DataFrame({'foreign_key': [0, 1, 2]})
         )
 
-        extension_mock.return_value = 'extension'
+        extension_mock.return_value = {
+            'extension': 'parameters',
+            'child_rows': 0
+        }
         model_mock.return_value = 'model from extension'
         sample_mock.return_value = pd.DataFrame()
         update_mock.return_value = {'table_name': 'samples'}
@@ -222,6 +237,21 @@ class TestSampler(TestCase):
         # Check
         assert result == expected_result
         assert sampler.sampled == {'table_name': 'samples'}
+
+        modeler.get_positive_transformer.assert_called_once_with('child_rows')
+        number_mock.assert_called_once_with({
+            'name': 'child_rows',
+            'type': 'number',
+            'subtype': 'integer'
+        })
+        instance_number_mock.transform.assert_called_once_with('positive_float_values')
+
+        positive_transformer_mock.transform.assert_called_once()
+        call_args_list = positive_transformer_mock.transform.call_args_list
+        args, kwargs = call_args_list[0]
+        assert kwargs == {}
+        assert len(args) == 1
+        assert args[0].equals(pd.DataFrame({'child_rows': [0]}))
 
         primary_mock.assert_called_once_with(sampler, 'child_table', 5)
         parent_mock.assert_called_once_with(sampler, 'child_table')
@@ -241,7 +271,7 @@ class TestSampler(TestCase):
         assert args[2] == 'child_table'
         assert args[3] == 'parent_name'
 
-        model_mock.assert_called_once_with(sampler, 'extension')
+        model_mock.assert_called_once_with(sampler, {'extension': 'parameters'})
 
     @patch('sdv.sampler.Sampler.sample_rows', autospec=True)
     def test_sample_all(self, rows_mock):
@@ -417,8 +447,10 @@ class TestSampler(TestCase):
     def test__unflatten_gaussian_copula(self):
         """_unflatten_gaussian_copula add the distribution, type and fitted kwargs."""
         # Setup
-        data_navigator = MagicMock()
-        modeler = MagicMock()
+        data_navigator = MagicMock(spec=DataNavigator)
+        modeler = MagicMock(spec=Modeler)
+        positive_transformer_mock = MagicMock(**{'transform.side_effect': lambda x: np.exp(x)})
+        modeler.get_positive_transformer.return_value = positive_transformer_mock
         modeler.model_kwargs = {
             'distribution': 'distribution_name'
         }
@@ -445,8 +477,8 @@ class TestSampler(TestCase):
             'some': 'key',
             'distribution': 'distribution_name',
             'covariance': [
-                [1, 0],
-                [0, 1]
+                [1.0, 0.0],
+                [0.0, 1.0]
             ],
             'distribs': {
                 0: {
@@ -470,17 +502,29 @@ class TestSampler(TestCase):
         # Check
         assert result == expected_result
 
-        data_navigator.assert_not_called()
-        modeler.assert_not_called()
+        assert len(data_navigator.mock_calls) == 0
+        modeler.get_positive_transformer.assert_called_once_with('std')
+        assert len(modeler.method_calls) == 1
+        call_args_list = positive_transformer_mock.transform.call_args_list
+        assert len(call_args_list) == 2
+
+        for call in call_args_list:
+            args, kwargs = call
+            assert len(args) == 1
+            assert args[0].equals(pd.DataFrame({'std': [0]}))
+            assert kwargs == {}
 
     def test__unflatten_gaussian_copula_negative_std(self):
         """_unflatten_gaussian_copula will transform negative or 0 std into positive."""
         # Setup
-        data_navigator = MagicMock()
-        modeler = MagicMock()
+        data_navigator = MagicMock(spec=DataNavigator)
+        modeler = MagicMock(spec=Modeler)
+        positive_transformer_mock = MagicMock(**{'transform.side_effect': lambda x: np.exp(x)})
+        modeler.get_positive_transformer.return_value = positive_transformer_mock
         modeler.model_kwargs = {
             'distribution': 'distribution_name'
         }
+
         sampler = Sampler(data_navigator, modeler)
 
         model_parameters = {
@@ -529,8 +573,25 @@ class TestSampler(TestCase):
         # Check
         assert result == expected_result
 
-        data_navigator.assert_not_called()
+        assert len(data_navigator.mock_calls) == 0
+        modeler.get_positive_transformer.assert_called_once_with('std')
+        assert len(modeler.method_calls) == 1
         modeler.assert_not_called()
+
+        call_args_list = positive_transformer_mock.transform.call_args_list
+        assert len(call_args_list) == 2
+
+        first_call, second_call = call_args_list
+
+        args, kwargs = first_call
+        assert len(args) == 1
+        assert args[0].equals(pd.DataFrame({'std': [0]}))
+        assert kwargs == {}
+
+        args, kwargs = second_call
+        assert len(args) == 1
+        assert args[0].equals(pd.DataFrame({'std': [-1]}))
+        assert kwargs == {}
 
     def test__sample_valid_rows_respect_categorical_values(self):
         """_sample_valid_rows will return rows with valid values for categorical columns."""
