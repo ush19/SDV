@@ -35,7 +35,7 @@ class SDV:
     def _check_unsupported_dataset_structure(self):
         """Checks that no table has two parents."""
         tables = self.dn.tables.keys()
-        amount_parents = [len(self.dn.get_parents(table)) <= 1 for table in tables]
+        amount_parents = (len(self.dn.get_parents(table)) <= 1 for table in tables)
         if not all(amount_parents):
             raise ValueError('Some tables have multiple parents, which is not supported yet.')
 

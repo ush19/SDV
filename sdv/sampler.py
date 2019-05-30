@@ -560,13 +560,13 @@ class Sampler:
         parent_row = self._get_parent_row(table_name)
 
         if parent_row:
-            random_parent, fk, parent_row = parent_row
+            parent_name, fk, parent_row = parent_row
 
             # Make sure only using one row
             parent_row = parent_row.loc[[0]]
 
             # get parameters from parent to make model
-            extension = self._get_extension(parent_row, table_name, random_parent)
+            extension = self._get_extension(parent_row, table_name, parent_name)
 
             positive_transformer = self.modeler.get_positive_transformer('child_rows')
             integer_transformer = NumberTransformer({
@@ -591,7 +591,7 @@ class Sampler:
             fk_val = parent_row.loc[0, fk]
 
             # get foreign key name from current table
-            foreign_key = self.dn.foreign_keys[(table_name, random_parent)][1]
+            foreign_key = self.dn.foreign_keys[(table_name, parent_name)][1]
             synthesized_rows[foreign_key] = fk_val
 
         else:    # there is no parent

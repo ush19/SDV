@@ -23,24 +23,25 @@ def get_logger():
 
 LOGGER = get_logger()
 
+# The commented entries are datasets that are not supported
 
 table_dict = {
     'airbnb_demo': ['users', 'sessions'],
-    'biodegradability': ['molecule', 'atom', 'bond'],
-    'coupon_purchase_prediction': ['prefecture_locations', 'user_list',
-                                   'coupon_list_train', 'coupon_visit_train',
-                                   'coupon_detail_train', 'coupon_area_train'],
-    'hilary_clinton_emails': ['Persons', 'Emails', 'Aliases',
-                              'EmailReceivers'],
-    'mutagenesis': ['molecule', 'atom', 'bond'],
-    'nips_2015_papers': ['Authors', 'Papers', 'PaperAuthors'],
-    'rossman': ['store', 'train'],
+    # 'biodegradability': ['molecule', 'atom', 'bond'],
+    # 'coupon_purchase_prediction': ['prefecture_locations', 'user_list',
+    #                               'coupon_list_train', 'coupon_visit_train',
+    #                               'coupon_detail_train', 'coupon_area_train'],
+    # 'hilary_clinton_emails': ['Persons', 'Emails', 'Aliases',
+    #                          'EmailReceivers'],
+    # 'mutagenesis': ['molecule', 'atom', 'bond'],
+    # 'nips_2015_papers': ['Authors', 'Papers', 'PaperAuthors'],
+    # 'rossman': ['store', 'train'],
     'telstra': ['severity_type', 'resource_type',
                 'event_type', 'log_feature'],
     'walmart': ['stores', 'train', 'features'],
-    'world_development_indicators': ['Country', 'Series',
-                                     'CountryNotes', 'Footnotes',
-                                     'SeriesNotes', 'Indicators']
+    # 'world_development_indicators': ['Country', 'Series',
+    #                                 'CountryNotes', 'Footnotes',
+    #                                 'SeriesNotes', 'Indicators']
 }
 
 
